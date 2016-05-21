@@ -45,7 +45,7 @@ void loop() {
   {
     lastTypeClic = 1;
   }
-  if(clicTime > 3000)
+  if(clicTime > 2000)
   {
     viteza = 0;
   }
@@ -53,13 +53,17 @@ void loop() {
   // END Sectiunea de vitezometru
 
   //Sectiunea de detectie de frana
-  if(CLICKLOOP)
+  if(CLICKLOOP || !viteza)
   {
-    if(viteza != viteza_anterioara && (viteza_anterioara - viteza) > 6)
+    if(viteza != viteza_anterioara && ((viteza_anterioara - viteza) >= 6))
     {
       analogWrite(Stop, 255);
     }
-    else if( (viteza - viteza_anterioara <= 6) && (viteza - viteza_anterioara > 0) )
+    else if( ( (viteza_anterioara - viteza) <= 6) && ( (viteza_anterioara - viteza) > 2) )
+    {
+      analogWrite(Stop, 128);
+    }
+    else if(!viteza)
     {
       analogWrite(Stop, 128);
     }
@@ -73,6 +77,8 @@ void loop() {
   //END Sectiunea de detectie de frana
   
   Serial.print(viteza);
+  Serial.print(" , ");
+  Serial.print(viteza_anterioara);
   Serial.print(" , ");
   Serial.println(clic);
   
