@@ -1,4 +1,6 @@
 #include <Servo.h>
+
+
 Servo servo_dreapta;
 Servo servo_stanga;
 
@@ -19,7 +21,7 @@ const unsigned short wheel = 2080;
 void writeServos(int right=0, int left=0)
 {
   servo_dreapta.write(90-5+right);
-  servo_stanga.write(90-13-left);
+  servo_stanga.write(90-14-((float)left*0.85));
 }
 
 float vitezaCalc(int Timp)
@@ -50,6 +52,7 @@ void ServoSeq()
     writeServos(i, i);
     delay(30);
   }
+  writeServos();
 }
 
 //variabile
@@ -63,6 +66,8 @@ bool lastTypeClic = 1;
 bool prevToggle = 1;
 bool CLICKLOOP = 0;
 bool MANUALFLAPS = 0;
+bool MFToggle = 0;
+bool ReturnToBase = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -91,7 +96,6 @@ void loop() {
   {
     viteza = vitezaCalc(clicTime);
     lastClic = millis();
-    clicTime = 0;
     lastTypeClic = clic;
     CLICKLOOP = 1; //IMPORTANT
   }
@@ -109,6 +113,8 @@ void loop() {
     MANUALFLAPS = !MANUALFLAPS;
     
     prevToggle = ToggleVal;
+    if(MANUALFLAPS == 0)
+      ReturnToBase = 1;
   }
   else if(ToggleVal == 1 && prevToggle == 0)
     prevToggle = 1;
@@ -124,23 +130,36 @@ void loop() {
   else
   {
     digitalWrite(ToggleStatus, LOW);
-    writeServos();
   }
   //END Sectiunea de Control Manual al FLAPS
   
   //Sectiunea de detectie de frana
-  if(CLICKLOOP || !viteza)
+  if(CLICKLOOP)
   {
-    if(viteza != viteza_anterioara && ((viteza_anterioara - viteza) >= 6))
+    if(viteza != viteza_anterioara && ((viteza_anterioara - viteza) >= 4))
+    {
       analogWrite(Stop, 255);
-    else if( ( (viteza_anterioara - viteza) <= 6) && ( (viteza_anterioara - viteza) > 2) )
+      writeServos(75, 75);
+    }
+    else if( ( (viteza_anterioara - viteza) < 4) && ( (viteza_anterioara - viteza) > 1.65) )
+    {
       analogWrite(Stop, 128);
+      writeServos(38, 38);
+    }
     else if(!viteza)
+    {
       analogWrite(Stop, 128);
+    }
     else
-      analogWrite(Stop, 0);
-  
-    viteza_anterioara = viteza;
+      analogWrite(Stop, 0); 
+  }
+  if(!viteza && viteza_anterioara)
+  {
+    ReturnToBase = 1;
+  }
+  if(!viteza)
+  {
+    analogWrite(Stop, 128);
   }
   //END Sectiunea de detectie de frana
   
@@ -151,8 +170,14 @@ void loop() {
   //Serial.println(analogRead(A0));
   Serial.print(" , ");
   Serial.println(clic);
-  
+
+
+  if(ReturnToBase)
+  {
+    writeServos();
+    ReturnToBase = !ReturnToBase;
+  }
   CLICKLOOP = 0;
-  
+  viteza_anterioara = viteza;
   delay(1); // "daca da eroare maresti delayu;" Pava -2016
 }
