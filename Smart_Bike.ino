@@ -6,7 +6,6 @@ Servo servo_stanga;
 
 //constante
 const short vitezometru = 2;
-const short Stop = 3;
 const short servo_dreapta_pin = 4;
 const short servo_stanga_pin = 5;
 const short controlX = A0;
@@ -14,6 +13,28 @@ const short controlY = A1;
 const short Toggle = 22;
 const short ToggleStatus = 23;
 
+const short RGB[2][3] = 
+{
+  {
+    6,7,8
+  },
+  {
+    11,12,3
+  }
+};
+
+void displayAll(int r=0, int g=0, int b=0)
+{
+  r = 255-r;
+  g = 255-g;
+  b = 255-b;
+  for(int i = 0;i<2;i++)
+  {
+    analogWrite(RGB[i][0], r);
+    analogWrite(RGB[i][1], g);
+    analogWrite(RGB[i][2], b);
+  }
+}
 
 
 const unsigned short wheel = 2080;
@@ -68,13 +89,21 @@ bool CLICKLOOP = 0;
 bool MANUALFLAPS = 0;
 bool MFToggle = 0;
 bool ReturnToBase = 0;
+bool ConnectedToBl = 0;
 
 void setup() {
   Serial.begin(9600);
+  Serial1.begin(9600);
   pinMode(vitezometru, INPUT_PULLUP);
   pinMode(Toggle, INPUT_PULLUP);
-  pinMode(Stop, OUTPUT);
   pinMode(ToggleStatus, OUTPUT);
+  for(int i = 0;i<2;i++)
+  {
+    for(int j = 0;j<3;j++)
+    {
+      pinMode(RGB[i][j], OUTPUT);
+    }
+  }
   
   servo_dreapta.attach(servo_dreapta_pin);
   servo_stanga.attach(servo_stanga_pin);
@@ -86,7 +115,15 @@ void setup() {
 void loop() {
 
   // Sectiunea de vitezometru
-  
+  if(Serial1.available() > 0)
+  {
+      str = Serial1.readStringUntil('~');
+      Serial.println(str);
+      if(str && !ConnectedToBl)
+      {
+        ConnectedToBl = 1;
+      }
+  }
   int clic = digitalRead(vitezometru);
   int ToggleVal = digitalRead(Toggle);
   clicTime = millis() - lastClic;
@@ -114,7 +151,11 @@ void loop() {
     
     prevToggle = ToggleVal;
     if(MANUALFLAPS == 0)
+    {
       ReturnToBase = 1;
+    }
+    else
+      displayAll(0,0,255);
   }
   else if(ToggleVal == 1 && prevToggle == 0)
     prevToggle = 1;
@@ -126,6 +167,7 @@ void loop() {
     int writeValue = map(valoareX, 0, 1024, 75, 0);
     writeServos(writeValue, writeValue);
     digitalWrite(ToggleStatus, HIGH);
+    
   }
   else
   {
@@ -138,38 +180,35 @@ void loop() {
   {
     if(viteza != viteza_anterioara && ((viteza_anterioara - viteza) >= 4))
     {
-      analogWrite(Stop, 255);
       writeServos(75, 75);
+      displayAll(255, 0, 0);
     }
     else if( ( (viteza_anterioara - viteza) < 4) && ( (viteza_anterioara - viteza) > 1.65) )
     {
-      analogWrite(Stop, 128);
       writeServos(38, 38);
-    }
-    else if(!viteza)
-    {
-      analogWrite(Stop, 128);
+      displayAll(128, 0, 0);
     }
     else
-      analogWrite(Stop, 0); 
+      displayAll(); 
   }
   if(!viteza && viteza_anterioara)
   {
     ReturnToBase = 1;
   }
-  if(!viteza)
+  /*if(!viteza)
   {
-    analogWrite(Stop, 128);
-  }
+    displayAll(128, 0, 0);
+  }*/
   //END Sectiunea de detectie de frana
   
-  Serial.print(viteza);
-  Serial.print(" , ");
+  Serial.println(viteza);
+  /*Serial.print(" , ");
   Serial.print(viteza_anterioara);
   //Serial.print(" , ");
   //Serial.println(analogRead(A0));
   Serial.print(" , ");
   Serial.println(clic);
+  */
 
 
   if(ReturnToBase)
