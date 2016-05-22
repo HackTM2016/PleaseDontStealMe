@@ -1,6 +1,8 @@
 #include <Servo.h>
 
-
+long long systemClickTime = 0;
+int DELAYTIME = 1;
+//                                                                       A SI VEZI CA NE TREBE SI FRONT LIGHT
 Servo servo_dreapta;
 Servo servo_stanga;
 
@@ -12,6 +14,11 @@ const short controlX = A0;
 const short controlY = A1;
 const short Toggle = 22;
 const short ToggleStatus = 23;
+//de adaugat cand terminam                                                             MA COAE ADAUGA AICi
+const short semnalizat_dr=35;
+const short semnalizat_stg=47;
+
+
 
 const short RGB[2][3] = 
 {
@@ -22,6 +29,9 @@ const short RGB[2][3] =
     11,12,3
   }
 };
+//
+
+
 
 void displayAll(int r=0, int g=0, int b=0)
 {
@@ -36,6 +46,30 @@ void displayAll(int r=0, int g=0, int b=0)
   }
 }
 
+void displayDr(int r=0, int g=0, int b=0)
+{
+  r = 255-r;
+  g = 255-g;
+  b = 255-b;
+    analogWrite(RGB[0][0], r);
+    analogWrite(RGB[0][1], g);
+    analogWrite(RGB[0][2], b);
+}
+
+void displayStg(int r=0, int g=0, int b=0)
+{
+  r = 255-r;
+  g = 255-g;
+  b = 255-b;
+    analogWrite(RGB[1][0], r);
+    analogWrite(RGB[1][1], g);
+    analogWrite(RGB[1][2], b);
+}
+
+void displayRandom()
+{
+  displayAll(random(0, 255), random(0, 255), random(0, 255));
+}
 
 const unsigned short wheel = 2080;
 
@@ -44,6 +78,17 @@ void writeServos(int right=0, int left=0)
   servo_dreapta.write(90-5+right);
   servo_stanga.write(90-14-((float)left*0.85));
 }
+
+void writeDr(int right=0)
+{
+  servo_dreapta.write(90-5+right);
+}
+
+void writeStg(int left=0)
+{
+  servo_stanga.write(90-14-((float)left*0.85));
+}
+
 
 float vitezaCalc(int Timp)
 {
@@ -75,6 +120,27 @@ void ServoSeq()
   }
   writeServos();
 }
+void semn(char a, int timp, int epoca){                                                                        // VERIFICA
+  if(a=='d'){
+      if(timp%epoca>=epoca/2)
+        displayDr(255,100,0);
+      else
+        displayDr();
+  }
+  else{
+      if(timp%epoca>=epoca/2)
+        displayStg(255,100,0);
+      else
+        displayStg();
+  }
+}
+
+void semnAll(int timp, int epoca){                                                                        // VERIFICA
+  if(timp%epoca>=epoca/2)
+    displayAll(255,100,0);
+  else
+    displayAll();
+}
 
 //variabile
 long lastClic = 0;
@@ -90,13 +156,18 @@ bool MANUALFLAPS = 0;
 bool MFToggle = 0;
 bool ReturnToBase = 0;
 bool ConnectedToBl = 0;
+bool stgTog=0, drTog=0;
+bool lastStg = 1, lastDr = 1;
 
 void setup() {
   Serial.begin(9600);
-  Serial1.begin(9600);
   pinMode(vitezometru, INPUT_PULLUP);
   pinMode(Toggle, INPUT_PULLUP);
   pinMode(ToggleStatus, OUTPUT);
+  
+  pinMode(semnalizat_stg,INPUT_PULLUP);
+  pinMode(semnalizat_dr, INPUT_PULLUP);
+   
   for(int i = 0;i<2;i++)
   {
     for(int j = 0;j<3;j++)
@@ -113,17 +184,10 @@ void setup() {
 }
 
 void loop() {
+  systemClickTime++;
 
   // Sectiunea de vitezometru
-  if(Serial1.available() > 0)
-  {
-      str = Serial1.readStringUntil('~');
-      Serial.println(str);
-      if(str && !ConnectedToBl)
-      {
-        ConnectedToBl = 1;
-      }
-  }
+  
   int clic = digitalRead(vitezometru);
   int ToggleVal = digitalRead(Toggle);
   clicTime = millis() - lastClic;
@@ -155,7 +219,7 @@ void loop() {
       ReturnToBase = 1;
     }
     else
-      displayAll(0,0,255);
+      displayRandom();
   }
   else if(ToggleVal == 1 && prevToggle == 0)
     prevToggle = 1;
@@ -188,8 +252,6 @@ void loop() {
       writeServos(38, 38);
       displayAll(128, 0, 0);
     }
-    else
-      displayAll(); 
   }
   if(!viteza && viteza_anterioara)
   {
@@ -209,14 +271,81 @@ void loop() {
   Serial.print(" , ");
   Serial.println(clic);
   */
+  //cod pt semnalizat                                                                 ASTA TEORETIC DOAR VERIFICA
+  int stg=digitalRead(semnalizat_stg);
+  int dr=digitalRead(semnalizat_dr);
+  Serial.print(stg);
+  Serial.print("-");
+  Serial.println(dr);
+  Serial.print("+");
+  if(stg==0&&lastStg==1)
+  {
+    stgTog = !stgTog;
+    if(stgTog == 0)
+    {
+      writeStg();
+      displayStg();
+    }
+    else if (drTog)
+    {
+      displayAll();
+      writeStg(75);
+    }
+    else
+    {
+      displayAll();
+      writeDr();
+      writeStg(75);
+    }
+  }
+  if(dr==0&&lastDr==1)
+  {
+    drTog = !drTog;
+    if(drTog == 0)
+    {
+      writeDr();
+      displayDr();
+    }
+    else if (stgTog)
+    {
+      displayAll();
+      writeDr(75);
+    }
+    else
+    {
+      displayAll();
+      writeStg();
+      writeDr(75);
+    }
+  }
 
+  lastStg = stg;
+  lastDr = dr;
 
+  if(drTog&&stgTog)
+  {
+    semnAll(systemClickTime, (500/DELAYTIME)/8);
+  }
+  else if(stgTog)
+  {
+    semn('s', systemClickTime, (500/DELAYTIME)/8);
+  }
+  else if(drTog)
+  {
+    semn('d', systemClickTime, (500/DELAYTIME)/8);
+  }
+  
+  
   if(ReturnToBase)
   {
     writeServos();
     ReturnToBase = !ReturnToBase;
+    displayAll();
   }
   CLICKLOOP = 0;
   viteza_anterioara = viteza;
-  delay(1); // "daca da eroare maresti delayu;" Pava -2016
+  
+  
+  
+  delay(DELAYTIME); // "daca da eroare maresti delayu;" Pava -2016
 }
